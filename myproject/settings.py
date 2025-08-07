@@ -56,12 +56,12 @@ TEMPLATES = [
 WSGI_APPLICATION = 'myproject.wsgi.application'
 
 # ======================== DATABASE ========================
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
 
 # DATABASES ["default"]= dj_database_url.parse("postgresql://safminet_db_user:a53c1wdWGzo6BpGn1Dg1A2oNy8A273an@dpg-d29f7iili9vc73flhr90-a.singapore-postgres.render.com/safminet_db")
 # DATABASES = {
@@ -72,10 +72,10 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 # }
 
 
-DATABASES = {
+# DATABASES = {
 
-    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
-}
+#     'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+# }
 # # ======================== PASSWORD VALIDATION ========================
 AUTH_PASSWORD_VALIDATORS = [
     {
