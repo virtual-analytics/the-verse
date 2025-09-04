@@ -1,0 +1,1 @@
+web: gunicorn myproject.wsgi --workers 1 --timeout 60

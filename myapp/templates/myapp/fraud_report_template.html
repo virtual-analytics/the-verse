@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Fraud Detection Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #E30613; margin-bottom: 5px; }
+        .header .subtitle { color: #666; font-size: 16px; }
+        .section { margin-bottom: 25px; }
+        .section h2 { color: #E30613; border-bottom: 2px solid #E30613; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 10px; text-align: left; }
+        th { background-color: #f5f5f5; }
+        .metric-card { 
+            background-color: #f8f9fa; 
+            border-left: 4px solid #E30613; 
+            padding: 15px; 
+            margin-bottom: 15px; 
+            border-radius: 4px;
+        }
+        .metric-title { color: #6c757d; font-size: 14px; margin-bottom: 5px; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #E30613; }
+        .footer { margin-top: 40px; text-align: center; color: #6c757d; font-size: 14px; }
+        .img-container { text-align: center; margin: 20px 0; }
+        .img-container img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Fraud Detection Analysis Report</h1>
+        <div class="subtitle">Generated on {{ generated_date }} by {{ user }}</div>
+    </div>
+
+    <div class="section">
+        <h2>Executive Summary</h2>
+        <p>
+            This report presents the results of the fraud detection analysis performed on the dataset 
+            <strong>{{ results.current_table }}</strong>. The analysis utilized machine learning models to identify 
+            potential fraudulent patterns in the data.
+        </p>
+        
+        <div class="row">
+            <div class="metric-card">
+                <div class="metric-title">Best Performing Model</div>
+                <div class="metric-value">{{ best_model|upper }}</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Dataset Size</div>
+                <div class="metric-value">{{ results.sample_size|floatformat:0 }} records</div>
+            </div>
+            
+            {% if results.fraud_ratio %}
+            <div class="metric-card">
+                <div class="metric-title">Fraud Ratio</div>
+                <div class="metric-value">{{ results.fraud_ratio|floatformat:4 }} ({{ results.fraud_ratio|floatformat:2 }}%)</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Dataset Information</h2>
+        <table>
+            <tr>
+                <th>Dataset Name</th>
+                <td>{{ results.current_table }}</td>
+            </tr>
+            <tr>
+                <th>Target Variable</th>
+                <td>{{ results.original_target }}</td>
+            </tr>
+            <tr>
+                <th>Number of Features</th>
+                <td>{{ results.features|length }}</td>
+            </tr>
+            <tr>
+                <th>Sample Size</th>
+                <td>{{ results.sample_size|floatformat:0 }} records</td>
+            </tr>
+            {% if results.fraud_ratio %}
+            <tr>
+                <th>Fraud Ratio</th>
+                <td>{{ results.fraud_ratio|floatformat:4 }} ({{ results.fraud_ratio|floatformat:2 }}%)</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Model Performance</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Accuracy</th>
+                    <th>Precision</th>
+                    <th>Recall</th>
+                    <th>F1 Score</th>
+                    {% if results.results.rf.metrics.roc_auc or results.results.gb.metrics.roc_auc %}
+                    <th>ROC AUC</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for model_type, result in results.results.items %}
+                {% if not result.error and not result.is_anomaly_detection %}
+                <tr>
+                    <td>{{ model_type|upper }}</td>
+                    <td>{{ result.metrics.accuracy|floatformat:4 }}</td>
+                    <td>{{ result.metrics.precision|floatformat:4 }}</td>
+                    <td>{{ result.metrics.recall|floatformat:4 }}</td>
+                    <td>{{ result.metrics.f1|floatformat:4 }}</td>
+                    {% if result.metrics.roc_auc %}
+                    <td>{{ result.metrics.roc_auc|floatformat:4 }}</td>
+                    {% endif %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if results.feature_importances %}
+    <div class="section">
+        <h2>Feature Importance</h2>
+        <p>The following features were identified as most significant for detecting fraud patterns:</p>
+        
+        {% for model_type, importance_data in results.feature_importances.items %}
+        <h3>{{ model_type|upper }} Feature Importance</h3>
+        
+        {% if importance_data.plot %}
+        <div class="img-container">
+            <img src="data:image/png;base64,{{ importance_data.plot }}" alt="Feature Importance for {{ model_type|upper }}">
+        </div>
+        {% endif %}
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Importance Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for feature, importance in importance_data.importances|slice:":10" %}
+                <tr>
+                    <td>{{ feature }}</td>
+                    <td>{{ importance|floatformat:6 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <h2>Recommendations</h2>
+        <p>Based on the analysis, the following recommendations are provided:</p>
+        <ul>
+            <li>Monitor transactions with characteristics identified as high-risk by the model</li>
+            <li>Implement regular model retraining to adapt to changing fraud patterns</li>
+            <li>Consider additional data sources to improve model accuracy</li>
+            <li>Establish a review process for transactions flagged by the model</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        <p>Report generated by Fraud Detection System on {{ generated_date }}</p>
+        <p>This report is confidential and intended for authorized use only.</p>
+    </div>
+</body>
+</html>

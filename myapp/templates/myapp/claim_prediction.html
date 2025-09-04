@@ -1,0 +1,1348 @@
+{% extends 'myapp/base.html' %}
+{% load humanize %}
+{% block title %}Claims Prediction Engine - Minet Insurance{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<style>
+    :root {
+        --primary: #e30613;
+        --primary-light: rgba(227, 6, 19, 0.1);
+        --secondary: #1e3a8a;
+        --text: #333;
+        --text-light: #6c757d;
+        --bg-light: #f8f9fa;
+        --border: #dee2e6;
+        --card-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        --hover-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    
+    body {
+        background-color: #f5f7fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+    }
+    
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr;
+        gap: 2rem;
+        max-width: 1800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .header-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        padding: 2rem;
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .header-card:hover {
+        box-shadow: var(--hover-shadow);
+    }
+    
+    .page-title {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--secondary);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+    }
+    
+    .tabs-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2rem;
+        border-bottom: 2px solid var(--border);
+        margin-bottom: 2rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .tab-link {
+        font-size: 1rem;
+        padding: 0.8rem 1.2rem;
+        cursor: pointer;
+        border: none;
+        background: none;
+        font-weight: 500;
+        color: var(--text-light);
+        border-bottom: 3px solid transparent;
+        border-radius: 6px 6px 0 0;
+        transition: all 0.25s ease;
+        text-decoration: none;
+    }
+    
+    .tab-link:hover, .tab-link.active {
+        color: var(--primary);
+        border-bottom: 3px solid var(--primary);
+        background: var(--primary-light);
+    }
+    
+    .filter-section {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        padding: 1.5rem;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 2rem;
+        align-items: flex-end;
+    }
+    
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        min-width: 160px;
+    }
+    
+    .filter-label {
+        font-size: 0.9rem;
+        color: var(--text-light);
+        margin-bottom: 8px;
+        font-weight: 500;
+    }
+    
+    .filter-input, .filter-select {
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #fff;
+        font-size: 0.95rem;
+        transition: border 0.3s ease;
+    }
+    
+    .filter-input:focus, .filter-select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-light);
+    }
+    
+    .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        padding: 10px 18px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.3s ease, transform 0.2s ease;
+        height: fit-content;
+    }
+    
+    .btn-primary:hover {
+        background: #c10510;
+        transform: translateY(-2px);
+    }
+    
+    .debug-info {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        background: #fff;
+        padding: 0.75rem 1rem;
+        border-left: 4px solid var(--primary);
+        margin-bottom: 1.5rem;
+        box-shadow: var(--card-shadow);
+        border-radius: 6px;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: var(--card-shadow);
+        padding: 1.25rem;
+        text-align: center;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--hover-shadow);
+    }
+    
+    .stat-icon {
+        font-size: 24px;
+        color: var(--primary);
+        margin-bottom: 12px;
+    }
+    
+    .stat-title {
+        margin: 0;
+        font-size: 14px;
+        color: var(--text-light);
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        margin: 8px 0 0;
+        font-size: 20px;
+        font-weight: bold;
+        color: var(--secondary);
+    }
+    
+    .chart-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: var(--card-shadow);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        width: 100%;
+    }
+    
+    .chart-card:hover {
+        box-shadow: var(--hover-shadow);
+    }
+    
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.75rem;
+    }
+    
+    .chart-title {
+        color: var(--primary);
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .toggle-icon {
+        transition: transform 0.3s ease;
+    }
+    
+    .chart-content {
+        transition: all 0.3s ease;
+    }
+    
+    .chart-collapsed .chart-content {
+        height: 0;
+        opacity: 0;
+        overflow: hidden;
+    }
+    
+    .chart-expanded .chart-content {
+        height: auto;
+        opacity: 1;
+    }
+    
+    .chart-expanded .toggle-icon {
+        transform: rotate(180deg);
+    }
+    
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+        gap: 2rem;
+        width: 100%;
+        margin: 0;
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    .tree-container {
+        width: 100%;
+        height: 650px;
+        border: 1px solid var(--border);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+    
+    .accordion {
+        margin-bottom: 1rem;
+    }
+    
+    .accordion-header {
+        background: var(--primary-light);
+        padding: 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+        color: var(--primary);
+    }
+    
+    .accordion-content {
+        padding: 1rem;
+        background: #fff;
+        border-radius: 0 0 8px 8px;
+        display: none;
+    }
+    
+    .accordion.active .accordion-content {
+        display: block;
+    }
+    
+    .analysis-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .analysis-tab {
+        padding: 8px 16px;
+        border-radius: 6px;
+        background: #f1f1f1;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .analysis-tab.active {
+        background: var(--primary);
+        color: white;
+    }
+    
+    .multi-select {
+        min-height: 100px;
+    }
+    
+    .filter-row {
+        display: flex;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+    
+    .filter-add-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 12px;
+        cursor: pointer;
+    }
+    
+    .filter-remove-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 12px;
+        cursor: pointer;
+    }
+    
+    @media (max-width: 1200px) {
+        .charts-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .dashboard-container {
+            padding: 1rem;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .filter-section {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .filter-group {
+            min-width: 100%;
+        }
+        
+        .stats-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+        
+        .tabs-container {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .analysis-tabs {
+            flex-wrap: wrap;
+        }
+        
+        .filter-row {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="dashboard-container">
+    <!-- Header Section -->
+    <div class="header-card">
+        <h1 class="page-title">
+            <i class="fas fa-chart-line"></i>
+            Claims Analytics Dashboard
+        </h1>
+        <p style="color: var(--text-light); margin: 0;">Comprehensive analysis of insurance claims data with advanced filtering and visualization capabilities</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+        <a href="{% url 'claim_prediction' %}" class="tab-link active">
+            <i class="fas fa-chart-pie"></i> Claim Distribution
+        </a>
+
+        <a href="{% url 'temporal_analysis' %}" class="tab-link">
+            <i class="fas fa-clock"></i> Temporal Analysis
+        </a>
+
+        <a href="{% url 'provider_efficiency' %}" class="tab-link">
+            <i class="fas fa-hospital-user"></i> Provider Efficiency
+        </a>
+
+        <a href="{% url 'diagnostic-patterns1' %}" class="tab-link">
+            <i class="fas fa-stethoscope"></i> Diagnostic Patterns
+        </a>
+    </div>
+
+    <!-- Main Content -->
+    <div id="data-prep" class="tab-content active">
+        <!-- Filters Form -->
+        <form method="GET" action="" id="filterForm">
+            <!-- Dataset and Basic Filters -->
+            <div class="filter-section">
+                <div class="filter-group">
+                    <label for="dataset_id" class="filter-label">Select Dataset:</label>
+                    <select name="dataset_id" id="dataset_id" class="filter-select" required onchange="updateColumnOptions()">
+                        {% for table in dataset_ids %}
+                            <option value="{{ table }}" {% if table == selected_id %}selected{% endif %}>{{ table }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="time_period" class="filter-label">Time Period:</label>
+                    <select name="time_period" id="time_period" class="filter-select">
+                        <option value="all" {% if time_period == 'all' %}selected{% endif %}>All Time</option>
+                        <option value="year" {% if time_period == 'year' %}selected{% endif %}>Last Year</option>
+                        <option value="quarter" {% if time_period == 'quarter' %}selected{% endif %}>Last Quarter</option>
+                        <option value="month" {% if time_period == 'month' %}selected{% endif %}>Last Month</option>
+                        <option value="week" {% if time_period == 'week' %}selected{% endif %}>Last Week</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="start_date" class="filter-label">Start Date:</label>
+                    <input type="date" name="start_date" id="start_date" value="{{ start_date|default:'' }}" class="filter-input">
+                </div>
+
+                <div class="filter-group">
+                    <label for="end_date" class="filter-label">End Date:</label>
+                    <input type="date" name="end_date" id="end_date" value="{{ end_date|default:'' }}" class="filter-input">
+                </div>
+
+                <div class="filter-group">
+                    <label for="benefit_type" class="filter-label">Benefit Type:</label>
+                    <select name="benefit_type" id="benefit_type" class="filter-select">
+                        <option value="all" {% if benefit_type == 'all' %}selected{% endif %}>All Benefits</option>
+                        {% if benefit_types %}
+                            {% for benefit in benefit_types %}
+                                <option value="{{ benefit }}" {% if benefit == benefit_type %}selected{% endif %}>{{ benefit }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-filter"></i> Apply Filters
+                </button>
+            </div>
+
+            <!-- Analysis Type Selector -->
+            <div class="filter-section">
+                <div class="filter-group" style="min-width: 100%;">
+                    <label class="filter-label">Analysis Type:</label>
+                    <div class="analysis-tabs">
+                        <div class="analysis-tab {% if analysis_type == 'basic' %}active{% endif %}" onclick="setAnalysisType('basic')">Basic Analysis</div>
+                        <div class="analysis-tab {% if analysis_type == 'temporal' %}active{% endif %}" onclick="setAnalysisType('temporal')">Temporal Analysis</div>
+                        <div class="analysis-tab {% if analysis_type == 'provider' %}active{% endif %}" onclick="setAnalysisType('provider')">Provider Analysis</div>
+                        <div class="analysis-tab {% if analysis_type == 'service' %}active{% endif %}" onclick="setAnalysisType('service')">Service Analysis</div>
+                        <div class="analysis-tab {% if analysis_type == 'advanced' %}active{% endif %}" onclick="setAnalysisType('advanced')">Advanced Analysis</div>
+                    </div>
+                    <input type="hidden" name="analysis_type" id="analysis_type" value="{{ analysis_type|default:'basic' }}">
+                </div>
+            </div>
+
+            <!-- Advanced Multi-Level Filters Accordion -->
+            <div class="accordion" id="multiLevelFilters">
+                <div class="accordion-header" onclick="toggleAccordion('multiLevelFilters')">
+                    <span>Multi-Level Filters</span>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="accordion-content">
+                    <div class="filter-section">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="filter_column_1" class="filter-label">Filter Column 1:</label>
+                                <select name="filter_column_1" id="filter_column_1" class="filter-select" onchange="updateFilterOptions('filter_column_1', 'filter_values_1')">
+                                    <option value="None">None</option>
+                                    {% for col in cat_cols %}
+                                        <option value="{{ col }}" {% if col == filter_column_1 %}selected{% endif %}>{{ col }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="filter_values_1" class="filter-label">Filter Values 1:</label>
+                                <select name="filter_values_1" id="filter_values_1" multiple class="filter-select multi-select">
+                                    {% for value in filter_values_1_options %}
+                                        <option value="{{ value }}" {% if value in filter_values_1 %}selected{% endif %}>{{ value }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="filter_column_2" class="filter-label">Filter Column 2:</label>
+                                <select name="filter_column_2" id="filter_column_2" class="filter-select" onchange="updateFilterOptions('filter_column_2', 'filter_values_2')">
+                                    <option value="None">None</option>
+                                    {% for col in cat_cols %}
+                                        <option value="{{ col }}" {% if col == filter_column_2 %}selected{% endif %}>{{ col }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="filter_values_2" class="filter-label">Filter Values 2:</label>
+                                <select name="filter_values_2" id="filter_values_2" multiple class="filter-select multi-select">
+                                    {% for value in filter_values_2_options %}
+                                        <option value="{{ value }}" {% if value in filter_values_2 %}selected{% endif %}>{{ value }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="filter_column_3" class="filter-label">Filter Column 3:</label>
+                                <select name="filter_column_3" id="filter_column_3" class="filter-select" onchange="updateFilterOptions('filter_column_3', 'filter_values_3')">
+                                    <option value="None">None</option>
+                                    {% for col in cat_cols %}
+                                        <option value="{{ col }}" {% if col == filter_column_3 %}selected{% endif %}>{{ col }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="filter_values_3" class="filter-label">Filter Values 3:</label>
+                                <select name="filter_values_3" id="filter_values_3" multiple class="filter-select multi-select">
+                                    {% for value in filter_values_3_options %}
+                                        <option value="{{ value }}" {% if value in filter_values_3 %}selected{% endif %}>{{ value }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comparison Analysis Accordion -->
+            <div class="accordion" id="comparisonAnalysis">
+                <div class="accordion-header" onclick="toggleAccordion('comparisonAnalysis')">
+                    <span>Comparison Analysis</span>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="accordion-content">
+                    <div class="filter-section">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="compare_column" class="filter-label">Compare By:</label>
+                                <select name="compare_column" id="compare_column" class="filter-select" onchange="updateFilterOptions('compare_column', 'compare_values')">
+                                    <option value="None">None</option>
+                                    {% for col in cat_cols %}
+                                        <option value="{{ col }}" {% if col == compare_column %}selected{% endif %}>{{ col }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="compare_values" class="filter-label">Compare Values:</label>
+                                <select name="compare_values" id="compare_values" multiple class="filter-select multi-select">
+                                    {% for value in compare_values_options %}
+                                        <option value="{{ value }}" {% if value in compare_values %}selected{% endif %}>{{ value }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Chart Builder Accordion -->
+            <div class="accordion" id="customChartBuilder">
+                <div class="accordion-header" onclick="toggleAccordion('customChartBuilder')">
+                    <span>Custom Chart Builder</span>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="accordion-content">
+                    <div class="filter-section">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="x_axis" class="filter-label">X-Axis:</label>
+                                <select name="x_axis" id="x_axis" class="filter-select">
+                                    {% for col in cat_cols %}
+                                        <option value="{{ col }}" {% if col == x_axis %}selected{% endif %}>{{ col }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="y_axis" class="filter-label">Y-Axis:</label>
+                                <select name="y_axis" id="y_axis" class="filter-select">
+                                    <option value="amount" {% if y_axis == 'amount' %}selected{% endif %}>Amount</option>
+                                    <option value="quantity" {% if y_axis == 'quantity' %}selected{% endif %}>Quantity</option>
+                                    <option value="count" {% if y_axis == 'count' %}selected{% endif %}>Count</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="chart_type" class="filter-label">Chart Type:</label>
+                                <select name="chart_type" id="chart_type" class="filter-select">
+                                    <option value="bar" {% if chart_type == 'bar' %}selected{% endif %}>Bar Chart</option>
+                                    <option value="line" {% if chart_type == 'line' %}selected{% endif %}>Line Chart</option>
+                                    <option value="scatter" {% if chart_type == 'scatter' %}selected{% endif %}>Scatter Plot</option>
+                                    <option value="pie" {% if chart_type == 'pie' %}selected{% endif %}>Pie Chart</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Filters Accordion -->
+            <div class="accordion" id="advancedFilters">
+                <div class="accordion-header" onclick="toggleAccordion('advancedFilters')">
+                    <span>Advanced Filters</span>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="accordion-content">
+                    <div class="filter-section">
+                        <!-- Amount Range Filter -->
+                        <div class="filter-group">
+                            <label for="min_amount" class="filter-label">Min Amount (KES):</label>
+                            <input type="number" name="min_amount" id="min_amount" value="{{ min_amount|default:'0' }}" class="filter-input">
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="max_amount" class="filter-label">Max Amount (KES):</label>
+                            <input type="number" name="max_amount" id="max_amount" value="{{ max_amount|default:'1000000' }}" class="filter-input">
+                        </div>
+
+                        <!-- Quantity Range Filter -->
+                        <div class="filter-group">
+                            <label for="min_quantity" class="filter-label">Min Quantity:</label>
+                            <input type="number" name="min_quantity" id="min_quantity" value="{{ min_quantity|default:'0' }}" class="filter-input">
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="max_quantity" class="filter-label">Max Quantity:</label>
+                            <input type="number" name="max_quantity" id="max_quantity" value="{{ max_quantity|default:'1000' }}" class="filter-input">
+                        </div>
+
+                        <!-- Demographic Filters -->
+                        <div class="filter-group">
+                            <label for="gender" class="filter-label">Gender:</label>
+                            <select name="gender" id="gender" class="filter-select">
+                                <option value="all" {% if gender == 'all' %}selected{% endif %}>All Genders</option>
+                                <option value="male" {% if gender == 'male' %}selected{% endif %}>Male</option>
+                                <option value="female" {% if gender == 'female' %}selected{% endif %}>Female</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="age_range" class="filter-label">Age Group:</label>
+                            <select name="age_range" id="age_range" class="filter-select">
+                                <option value="all" {% if age_range == 'all' %}selected{% endif %}>All Ages</option>
+                                {% for age in age_groups %}
+                                    <option value="{{ age }}" {% if age == age_range %}selected{% endif %}>{{ age }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Provider and Claim Filters -->
+                        <div class="filter-group">
+                            <label for="provider_type" class="filter-label">Provider Type:</label>
+                            <select name="provider_type" id="provider_type" class="filter-select">
+                                <option value="all" {% if provider_type == 'all' %}selected{% endif %}>All Providers</option>
+                                <option value="hospital" {% if provider_type == 'hospital' %}selected{% endif %}>Hospital</option>
+                                <option value="clinic" {% if provider_type == 'clinic' %}selected{% endif %}>Clinic</option>
+                                <option value="pharmacy" {% if provider_type == 'pharmacy' %}selected{% endif %}>Pharmacy</option>
+                                <option value="lab" {% if provider_type == 'lab' %}selected{% endif %}>Laboratory</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="provider_filter" class="filter-label">Specific Provider:</label>
+                            <select name="provider_filter" id="provider_filter" class="filter-select">
+                                <option value="all" {% if provider_filter == 'all' %}selected{% endif %}>All Providers</option>
+                                {% for provider in providers %}
+                                    <option value="{{ provider }}" {% if provider == provider_filter %}selected{% endif %}>{{ provider }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="claim_status" class="filter-label">Claim Status:</label>
+                            <select name="claim_status" id="claim_status" class="filter-select">
+                                <option value="all" {% if claim_status == 'all' %}selected{% endif %}>All Statuses</option>
+                                <option value="approved" {% if claim_status == 'approved' %}selected{% endif %}>Approved</option>
+                                <option value="pending" {% if claim_status == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="rejected" {% if claim_status == 'rejected' %}selected{% endif %}>Rejected</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="cost_center" class="filter-label">Cost Center:</label>
+                            <select name="cost_center" id="cost_center" class="filter-select">
+                                <option value="all" {% if cost_center == 'all' %}selected{% endif %}>All Cost Centers</option>
+                                {% for center in cost_centers %}
+                                    <option value="{{ center }}" {% if center == cost_center %}selected{% endif %}>{{ center }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="dependent_type" class="filter-label">Dependent Type:</label>
+                            <select name="dependent_type" id="dependent_type" class="filter-select">
+                                <option value="all" {% if dependent_type == 'all' %}selected{% endif %}>All Types</option>
+                                {% for type in dependent_types %}
+                                    <option value="{{ type }}" {% if type == dependent_type %}selected{% endif %}>{{ type }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="diagnosis_filter" class="filter-label">Diagnosis:</label>
+                            <select name="diagnosis_filter" id="diagnosis_filter" class="filter-select">
+                                <option value="all" {% if diagnosis_filter == 'all' %}selected{% endif %}>All Diagnoses</option>
+                                {% for diagnosis in diagnoses %}
+                                    <option value="{{ diagnosis }}" {% if diagnosis == diagnosis_filter %}selected{% endif %}>{{ diagnosis }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Claim Distribution Filters -->
+            <div class="filter-section">
+                <div class="filter-group">
+                    <label for="dist_category" class="filter-label">Group claims by:</label>
+                    <select name="dist_category" id="dist_category" class="filter-select">
+                        {% for col in cat_cols %}
+                            <option value="{{ col }}" {% if col == dist_category %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="dist_filter" class="filter-label">Filter by:</label>
+                    <select name="dist_filter" id="dist_filter" class="filter-select" onchange="updateFilterOptions('dist_filter', 'dist_filter_values')">
+                        <option value="None" {% if dist_filter == 'None' %}selected{% endif %}>None</option>
+                        {% for col in cat_cols %}
+                            <option value="{{ col }}" {% if col == dist_filter %}selected{% endif %}>{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if dist_filter != 'None' and dist_filter_values_options %}
+                <div class="filter-group">
+                    <label for="dist_filter_values" class="filter-label">Select {{ dist_filter }} values:</label>
+                    <select name="dist_filter_values" id="dist_filter_values" multiple class="filter-select multi-select">
+                        {% for value in dist_filter_values_options %}
+                            <option value="{{ value }}" {% if value in dist_filter_values %}selected{% endif %}>{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="filter-group">
+                    <label for="dist_metric" class="filter-label">Analysis metric:</label>
+                    <select name="dist_metric" id="dist_metric" class="filter-select">
+                        <option value="Count" {% if dist_metric == 'Count' %}selected{% endif %}>Count</option>
+                        <option value="Sum of Amount" {% if dist_metric == 'Sum of Amount' %}selected{% endif %}>Sum of Amount</option>
+                        <option value="Average Amount" {% if dist_metric == 'Average Amount' %}selected{% endif %}>Average Amount</option>
+                    </select>
+                </div>
+            </div>
+        </form>
+
+        {% if debug_info %}
+            <div class="debug-info">
+                <i class="fas fa-info-circle"></i> {{ debug_info }}
+            </div>
+        {% endif %}
+
+        <!-- 📊 Summary Cards -->
+        {% if visualizations and visualizations.summary_stats %}
+        <div class="stats-grid">
+
+            <!-- Total Claims -->
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-file-invoice"></i></div>
+                <h3 class="stat-title">Total Claims</h3>
+                <p class="stat-value">
+                    {{ visualizations.summary_stats.total_claims|floatformat:0|intcomma }}
+                </p>
+            </div>
+
+            <!-- Total Amount -->
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div>
+                <h3 class="stat-title">Total Amount</h3>
+                <p class="stat-value">
+                    KES {{ visualizations.summary_stats.total_amount|floatformat:2|intcomma }}
+                </p>
+            </div>
+
+            <!-- Average Claim -->
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-calculator"></i></div>
+                <h3 class="stat-title">Average Claim</h3>
+                <p class="stat-value">
+                    KES {{ visualizations.summary_stats.avg_claim|floatformat:2|intcomma }}
+                </p>
+            </div>
+
+            <!-- Unique Members -->
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <h3 class="stat-title">Unique Members</h3>
+                <p class="stat-value">
+                    {{ visualizations.summary_stats.unique_members|floatformat:0|intcomma }}
+                </p>
+            </div>
+
+            <!-- Unique Providers -->
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-hospital-user"></i></div>
+                <h3 class="stat-title">Unique Providers</h3>
+                <p class="stat-value">
+                    {{ visualizations.summary_stats.unique_providers|floatformat:0|intcomma }}
+                </p>
+            </div>
+
+            <!-- Unique Treatments -->
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-stethoscope"></i></div>
+                <h3 class="stat-title">Unique Treatments</h3>
+                <p class="stat-value">
+                    {{ visualizations.summary_stats.unique_treatments|floatformat:0|intcomma }}
+                </p>
+            </div>
+
+        </div>
+        {% endif %}
+        
+        <!-- Visualizations Section -->
+         <!-- Data Preview Section -->
+        <div class="accordion" id="dataPreview">
+            <div class="accordion-header" onclick="toggleAccordion('dataPreview')">
+                <span><i class="fas fa-table"></i> Data Preview (First 100 rows)</span>
+                <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+            </div>
+            <div class="accordion-content">
+                <div style="overflow-x: auto; max-height: 500px;">
+                    <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background-color: #f8f9fa; position: sticky; top: 0;">
+                                {% for column in sample_columns %}
+                                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left;">{{ column }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sample_data %}
+                            <tr>
+                                {% for column in sample_columns %}
+                                <td style="padding: 8px; border: 1px solid #dee2e6;">
+                                    {% for key, value in row.items %}
+                                        {% if key == column %}
+                                            {{ value|default:"" }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+
+
+
+
+        <!-- Drill-Down Analysis: Diseases Affecting Children -->
+        {% if drill_down_chart %}
+        <div class="chart-card chart-expanded" id="drill-down-chart">
+            <div class="chart-header" onclick="toggleChart('drill-down-chart')">
+                <h4 class="chart-title">
+                    <i class="fas fa-child"></i> 
+                </h4>
+                <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+            </div>
+            <div class="chart-content">
+                {{ drill_down_chart|safe }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Custom Chart -->
+        {% if custom_chart %}
+        <div class="chart-card chart-expanded" id="custom-chart">
+            <div class="chart-header" onclick="toggleChart('custom-chart')">
+                <h4 class="chart-title">
+                    <i class="fas fa-chart-bar"></i> Custom Analysis: {{ y_axis|capfirst }} by {{ x_axis|capfirst }}
+                </h4>
+                <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+            </div>
+            <div class="chart-content">
+                {{ custom_chart|safe }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Claim Distribution Chart -->
+        {% if chart_claim_distribution %}
+        <div class="chart-card chart-expanded" id="claim-distribution-chart">
+            <div class="chart-header" onclick="toggleChart('claim-distribution-chart')">
+                <h4 class="chart-title">
+                    <i class="fas fa-chart-pie"></i> 
+                </h4>
+                <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+            </div>
+            <div class="chart-content">
+                {{ chart_claim_distribution|safe }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <!-- Time Series Chart -->
+            {% if chart1_time_series %}
+            <div class="chart-card chart-expanded" id="time-series-chart">
+                <div class="chart-header" onclick="toggleChart('time-series-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-chart-line"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart1_time_series|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Heatmap Chart -->
+            {% if chart2_heatmap %}
+            <div class="chart-card chart-expanded" id="heatmap-chart">
+                <div class="chart-header" onclick="toggleChart('heatmap-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-calendar"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart2_heatmap|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Lorenz Curve Chart -->
+            {% if chart3_lorenz %}
+            <div class="chart-card chart-expanded" id="lorenz-chart">
+                <div class="chart-header" onclick="toggleChart('lorenz-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-chart-area"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart3_lorenz|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Boxplot Chart -->
+            {% if chart4_boxplot %}
+            <div class="chart-card chart-expanded" id="boxplot-chart">
+                <div class="chart-header" onclick="toggleChart('boxplot-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-chart-bar"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart4_boxplot|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Top Services Chart -->
+            {% if chart5_top_services %}
+            <div class="chart-card chart-expanded" id="top-services-chart">
+                <div class="chart-header" onclick="toggleChart('top-services-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-star"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart5_top_services|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Growth Rate Chart -->
+            {% if chart6_growth_rate %}
+            <div class="chart-card chart-expanded" id="growth-rate-chart">
+                <div class="chart-header" onclick="toggleChart('growth-rate-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-trending-up"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart6_growth_rate|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Correlation Matrix -->
+            {% if chart7_correlation %}
+            <div class="chart-card chart-expanded" id="correlation-chart">
+                <div class="chart-header" onclick="toggleChart('correlation-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-project-diagram"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart7_correlation|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Outlier Detection -->
+            {% if chart10_outliers %}
+            <div class="chart-card chart-expanded" id="outliers-chart">
+                <div class="chart-header" onclick="toggleChart('outliers-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart10_outliers|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Treemap Visualization -->
+            {% if chart11_treemap %}
+            <div class="chart-card chart-expanded" id="treemap-chart">
+                <div class="chart-header" onclick="toggleChart('treemap-chart')">
+                    <h4 class="chart-title">
+                        <i class="fas fa-sitemap"></i> 
+                    </h4>
+                    <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </div>
+                <div class="chart-content">
+                    {{ chart11_treemap|safe }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Claims Tree Button -->
+        <div style="margin-top: 2rem; text-align: center;">
+            <button class="btn-primary" onclick="loadClaimsTree(); scrollToSection('claims-tree-tab')">
+                <i class="fas fa-sitemap"></i> Load Claims Tree
+            </button>
+        </div>
+    </div>
+
+    <!-- Claims Tree Tab -->
+    <div id="claims-tree-tab" class="tab-content">
+        <h3 style="font-size: 1.5rem; color: var(--secondary); margin-bottom: 1rem;">
+            <i class="fas fa-diagram-project"></i> Claims Tree Structure
+        </h3>
+        <div class="tree-container" id="treeContainer">
+            <em>Click the "Load Claims Tree" button above to load...</em>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+// Function to toggle chart expansion/collapse
+// Function to toggle chart expansion/collapse
+function toggleChart(chartId) {
+    const chart = document.getElementById(chartId);
+    if (chart.classList.contains('chart-expanded')) {
+        chart.classList.remove('chart-expanded');
+        chart.classList.add('chart-collapsed');
+    } else {
+        chart.classList.remove('chart-collapsed');
+        chart.classList.add('chart-expanded');
+    }
+}
+
+// Function to toggle accordion
+function toggleAccordion(accordionId) {
+    const accordion = document.getElementById(accordionId);
+    accordion.classList.toggle('active');
+}
+
+// Function to scroll to a section
+function scrollToSection(id) {
+    document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+}
+
+// Function to set analysis type
+function setAnalysisType(type) {
+    document.getElementById('analysis_type').value = type;
+    
+    // Update UI
+    document.querySelectorAll('.analysis-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Submit form
+    document.getElementById('filterForm').submit();
+}
+
+// Function to update filter options based on selected column
+function updateFilterOptions(columnSelectId, valuesSelectId) {
+    const columnSelect = document.getElementById(columnSelectId);
+    const valuesSelect = document.getElementById(valuesSelectId);
+    const datasetId = document.getElementById('dataset_id').value;
+    const columnName = columnSelect.value;
+    
+    if (columnName === 'None') {
+        valuesSelect.innerHTML = '';
+        return;
+    }
+    
+    // Show loading state
+    valuesSelect.innerHTML = '<option value="">Loading...</option>';
+    
+    // Fetch filter values via AJAX - use the correct URL
+    const url = `/get-filter-options/?dataset_id=${encodeURIComponent(datasetId)}&column_name=${encodeURIComponent(columnName)}`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.values) {
+                valuesSelect.innerHTML = '';
+                data.values.forEach(value => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = value;
+                    valuesSelect.appendChild(option);
+                });
+            } else if (data.error) {
+                valuesSelect.innerHTML = `<option value="">Error: ${data.error}</option>`;
+            }
+        })
+        .catch(error => {
+            valuesSelect.innerHTML = `<option value="">Error loading options: ${error.message}</option>`;
+            console.error('Error:', error);
+        });
+}
+
+// Function to update all column options when dataset changes
+function updateColumnOptions() {
+    const datasetId = document.getElementById('dataset_id').value;
+    
+    // Show loading state for all column selects
+    const columnSelects = [
+        'dist_category', 'dist_filter', 'filter_column_1', 'filter_column_2', 
+        'filter_column_3', 'compare_column', 'x_axis'
+    ];
+    
+    columnSelects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (select) {
+            select.innerHTML = '<option value="">Loading...</option>';
+        }
+    });
+    
+    // Fetch column names via AJAX
+    const url = `/get-filter-options/?dataset_id=${encodeURIComponent(datasetId)}&column_name=__all_columns__`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.values) {
+                // Update all column selects
+                columnSelects.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    if (select) {
+                        select.innerHTML = '<option value="None">None</option>';
+                        data.values.forEach(column => {
+                            const option = document.createElement('option');
+                            option.value = column;
+                            option.textContent = column;
+                            select.appendChild(option);
+                        });
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading column options:', error);
+            // Fallback: reload the page to get fresh data
+            document.getElementById('filterForm').submit();
+        });
+}
+
+// Function to load claims tree
+function loadClaimsTree() {
+    // Show the tree tab
+    document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+    document.getElementById('claims-tree-tab').style.display = 'block';
+    
+    // Load tree data via AJAX
+    const params = new URLSearchParams(new FormData(document.getElementById('filterForm'))).toString();
+    fetch(window.location.pathname + '?' + params + '&load_tree=1')
+    .then(res => res.json())
+    .then(data => {
+        if (data.tree_data_json) {
+            renderClaimsTree(JSON.parse(data.tree_data_json));
+        } else {
+            document.getElementById('treeContainer').innerHTML = '<div>No data available</div>';
+        }
+    });
+}
+
+// Function to render claims tree using D3
+function renderClaimsTree(treeData) {
+    document.getElementById('treeContainer').innerHTML = "";
+    const width = document.getElementById('treeContainer').clientWidth;
+    const height = document.getElementById('treeContainer').clientHeight;
+
+    const svg = d3.select("#treeContainer").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g")
+        .attr("transform", "translate(50,50)");
+
+    const root = d3.hierarchy(treeData);
+    const treeLayout = d3.tree().size([height - 100, width - 200]);
+    treeLayout(root);
+
+    svg.selectAll('path.link')
+        .data(root.links())
+        .enter().append('path')
+        .attr('class', 'link')
+        .attr('d', d3.linkHorizontal()
+            .x(d => d.y)
+            .y(d => d.x))
+        .style("fill", "none")
+        .style("stroke", "#ccc")
+        .style("stroke-width", 2);
+
+    const node = svg.selectAll('g.node')
+        .data(root.descendants())
+        .enter().append('g')
+        .attr('class', 'node')
+        .attr('transform', d => `translate(${d.y},${d.x})`);
+
+    node.append('circle')
+        .attr('r', 6)
+        .style("fill", "#4e79a7")
+        .style("stroke", "#333")
+        .style("stroke-width", 1.5);
+
+    node.append('text')
+        .attr('dy', 3)
+        .attr('x', d => d.children ? -12 : 12)
+        .style('text-anchor', d => d.children ? 'end' : 'start')
+        .style('font-size', '12px')
+        .text(d => d.data.name.length > 30 ? d.data.name.slice(0, 30) + "..." : d.data.name)
+        .append("title")
+        .text(d => d.data.name);
+}
+
+// Initialize all charts as expanded by default
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up event listeners for all chart headers
+    document.querySelectorAll('.chart-header').forEach(header => {
+        header.addEventListener('click', function() {
+            const chartId = this.parentElement.id;
+            toggleChart(chartId);
+        });
+    });
+    
+    // Auto-submit form when certain filters change
+    const autoSubmitFilters = ['dataset_id', 'time_period', 'benefit_type', 'gender', 
+                              'provider_type', 'claim_status', 'age_range', 'cost_center',
+                              'dependent_type', 'provider_filter', 'diagnosis_filter',
+                              'dist_category', 'dist_metric'];
+    
+    autoSubmitFilters.forEach(filterId => {
+        const element = document.getElementById(filterId);
+        if (element) {
+            element.addEventListener('change', function() {
+                document.getElementById('filterForm').submit();
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

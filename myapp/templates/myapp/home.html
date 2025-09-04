@@ -1,0 +1,334 @@
+{% extends 'myapp/base.html' %}
+{% load humanize %}
+{% block title %}the Verse{% endblock %}
+
+{% block head %}
+{{ block.super }}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; gap: 2rem; max-width: 1400px; margin: 0 auto;">
+    <!-- Header Section -->
+    <div style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 16px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); border: 1px solid rgba(255, 255, 255, 0.4); padding: 2rem; transition: all 0.3s ease; overflow: hidden;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 0.8rem; border-bottom: 2px solid rgba(227, 6, 19, 0.15);">
+            <h1 style="font-size: 1.8rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.8rem;">
+                <i style="color: #e30613; font-size: 1.5rem;" class="fas fa-cloud-upload-alt"></i>
+                Claims Upload
+            </h1>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <!-- Processing message placeholder -->
+                <span id="processing-msg" style="color: #e30613; font-weight: 600; display: none;">
+                    <i class="fas fa-spinner fa-spin"></i> Processing...
+                </span>
+            </div>
+        </div>
+        
+        <p style="margin-bottom: 2rem; color: #6c757d;">
+            Analyze and visualize claims data to gain actionable insights. Select a dataset to begin.
+        </p>
+        
+        <!-- Dataset Selection -->
+        <form method="get" id="dataset-form">
+            <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+                <span style="font-size: 1.1rem; font-weight: 500; color: #1e3a8a; white-space: nowrap;">Select Dataset:</span>
+                <select name="dataset_id" id="dataset_id" style="font-size: 1rem; padding: 0.8em 1.2em; border-radius: 12px; border: 1px solid #e2e8f0; background: rgba(255, 255, 255, 0.7); min-width: 300px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);" required>
+                    <option value="">-- Select a dataset --</option>
+                    {% for ds in dataset_ids %}
+                        <option value="{{ ds }}" {% if selected_id == ds %}selected{% endif %}>{{ ds }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" style="background: linear-gradient(135deg, #e30613, #b0000b); color: #fff; border: none; border-radius: 12px; padding: 0.8em 2em; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(227, 6, 19, 0.25); display: flex; align-items: center; gap: 0.8rem;" name="desc_btn" value="1" onclick="showProcessing()">
+                    <i class="fas fa-cogs"></i> Process Data
+                </button>
+            </div>
+        </form>
+    </div>
+
+
+    <!-- Summary Stats Cards (Invoices vs Claims) -->
+    <div style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06); border: 1px solid rgba(255, 255, 255, 0.35); padding: 1.5rem; transition: all 0.3s ease; overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; padding-bottom: 0.6rem; border-bottom: 2px solid rgba(227, 6, 19, 0.12);">
+            <h2 style="font-size: 1.4rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.6rem;">
+                <i style="color: #e30613; font-size: 1.2rem;" class="fas fa-chart-pie"></i>
+                Summary Statistics
+            </h2>
+        </div>
+
+        {% if visualizations %}
+        <!-- Stats Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.2rem; margin-top: 1.2rem;">
+
+            <!-- 🔹 Total Invoices (Row Count) -->
+            <div style="padding: 1rem; border-radius: 10px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04); text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease;"
+                onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.1)';"
+                onmouseout="this.style.transform='none'; this.style.boxShadow='0 3px 10px rgba(0,0,0,0.04)';">
+                <div style="font-size: 0.9rem; color: #4a5568; margin-bottom: 0.5rem; font-weight: 500;">Total Invoices</div>
+                <div style="font-size: 1.3rem; font-weight: 700; color: #e30613; line-height: 1.2;">
+                    {{ visualizations.summary_stats.total_invoices|intcomma }}
+                </div>
+            </div>
+
+            <!-- 🔹 Total Claims (Unique claim_ce) -->
+            <div style="padding: 1rem; border-radius: 10px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04); text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease;"
+                onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.1)';"
+                onmouseout="this.style.transform='none'; this.style.boxShadow='0 3px 10px rgba(0,0,0,0.04)';">
+                <div style="font-size: 0.9rem; color: #4a5568; margin-bottom: 0.5rem; font-weight: 500;">Total Claims</div>
+                <div style="font-size: 1.3rem; font-weight: 700; color: #e30613; line-height: 1.2;">
+                    {{ visualizations.summary_stats.total_claims|intcomma }}
+                </div>
+            </div>
+
+            <!-- 🔹 Total Amount -->
+            <div style="padding: 1rem; border-radius: 10px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04); text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease;"
+                onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.1)';"
+                onmouseout="this.style.transform='none'; this.style.boxShadow='0 3px 10px rgba(0,0,0,0.04)';">
+                <div style="font-size: 0.9rem; color: #4a5568; margin-bottom: 0.5rem; font-weight: 500;">Total Amount</div>
+                <div style="font-size: 1.3rem; font-weight: 700; color: #e30613; line-height: 1.2;">
+                    KES {{ visualizations.summary_stats.total_amount|floatformat:2|intcomma }}
+                </div>
+            </div>
+
+            <!-- 🔹 Average Claim -->
+            <div style="padding: 1rem; border-radius: 10px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04); text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease;"
+                onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.1)';"
+                onmouseout="this.style.transform='none'; this.style.boxShadow='0 3px 10px rgba(0,0,0,0.04)';">
+                <div style="font-size: 0.9rem; color: #4a5568; margin-bottom: 0.5rem; font-weight: 500;">Average Claim</div>
+                <div style="font-size: 1.3rem; font-weight: 700; color: #e30613; line-height: 1.2;">
+                    KES {{ visualizations.summary_stats.avg_claim|floatformat:2|intcomma }}
+                </div>
+            </div>
+
+            <!-- 🔹 Unique Members -->
+            <div style="padding: 1rem; border-radius: 10px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04); text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease;"
+                onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.1)';"
+                onmouseout="this.style.transform='none'; this.style.boxShadow='0 3px 10px rgba(0,0,0,0.04)';">
+                <div style="font-size: 0.9rem; color: #4a5568; margin-bottom: 0.5rem; font-weight: 500;">Unique Members</div>
+                <div style="font-size: 1.3rem; font-weight: 700; color: #e30613; line-height: 1.2;">
+                    {{ visualizations.summary_stats.unique_members|intcomma }}
+                </div>
+            </div>
+
+        </div>
+        {% else %}
+        <!-- Empty State -->
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; text-align: center; background: rgba(240, 244, 254, 0.5); border-radius: 14px; border: 2px dashed rgba(30, 58, 138, 0.2);">
+            <i style="font-size: 3rem; color: rgba(30, 58, 138, 0.3); margin-bottom: 1rem;" class="fas fa-calculator"></i>
+            <h3 style="font-size: 1.2rem; color: #4a5568; margin-bottom: 0.6rem;">No Summary Statistics Available</h3>
+            <p style="color: #718096; max-width: 500px; margin: 0 auto; font-size: 0.9rem;">Process a dataset to view summary statistics.</p>
+        </div>
+        {% endif %}
+    </div>
+
+
+
+    <!-- Data Preview Section -->
+    {% if df_head %}
+    <div style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 16px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); border: 1px solid rgba(255, 255, 255, 0.4); padding: 2rem; transition: all 0.3s ease; overflow: hidden;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; padding-bottom: 0.6rem; border-bottom: 2px solid rgba(227, 6, 19, 0.15);">
+            <h2 style="font-size: 1.6rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.7rem;">
+                <i style="color: #e30613; font-size: 1.3rem;" class="fas fa-table"></i>
+                Data Preview: {{ selected_id|capfirst }}
+            </h2>
+            <div style="display: flex; gap: 0.8rem;">
+                <span style="background: #e30613; color: white; padding: 0.35em 0.75em; border-radius: 20px; font-size: 0.9rem;">
+                    Showing 5 of {{ visualizations.summary_stats.total_claims|intcomma }} records
+                </span>
+            </div>
+        </div>
+        
+        <div style="margin-top: 1.5rem; overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); font-size: 0.9rem; table-layout: auto;">
+                <thead>
+                    <tr>
+                        {% for key in df_head.0.keys|slice:":5" %}
+                            <th style="background: linear-gradient(135deg, #1e3a8a, #0f1f4d); color: #fff; font-weight: 600; padding: 0.65rem 0.9rem; text-align: left; border-bottom: 2px solid rgba(255, 255, 255, 0.15); position: sticky; top: 0; z-index: 2; white-space: nowrap;">{{ key|capfirst }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in df_head|slice:":5" %}
+                    <tr>
+                        {% for value in row.values|slice:":5" %}
+                            <td style="padding: 0.55rem 0.9rem; border: 1px solid rgba(0, 0, 0, 0.05); color: #2d3748; vertical-align: middle; white-space: nowrap;">{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    
+    <!-- Descriptive Statistics - Collapsible Section -->
+    <div style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 16px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); border: 1px solid rgba(255, 255, 255, 0.4); padding: 0; transition: all 0.3s ease; overflow: hidden;">
+        <div 
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; padding: 1.5rem; cursor: pointer; border-bottom: 1px solid rgba(227, 6, 19, 0.1);"
+            onclick="toggleDescriptiveStats()"
+            id="descriptiveStatsHeader"
+        >
+            <h2 style="font-size: 1.8rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 0.8rem; margin: 0;">
+                <i style="color: #e30613; font-size: 1.5rem;" class="fas fa-calculator"></i>
+                Descriptive Statistics (Click to Expand)
+            </h2>
+            <i class="fas fa-chevron-down" id="descriptiveStatsIcon" style="transition: transform 0.3s ease; color: #1e3a8a;"></i>
+        </div>
+        
+        <div id="descriptiveStatsContent" style="display: none; padding: 0 1.5rem 1.5rem;">
+            {% if desc_stats %}
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); font-size: 0.95rem;">
+                    <thead>
+                        <tr>
+                            {% for col in desc_stats.0.keys %}
+                                <th style="background: linear-gradient(135deg, #1e3a8a, #0f1f4d); color: #fff; font-weight: 600; padding: 1rem 1.2rem; text-align: left; border-bottom: 2px solid rgba(255, 255, 255, 0.15); position: sticky; top: 0; z-index: 2;">{{ col|capfirst }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in desc_stats %}
+                        <tr>
+                            {% for val in row.values %}
+                                <td style="padding: 0.9rem 1.2rem; border: 1px solid rgba(0, 0, 0, 0.05); color: #2d3748; vertical-align: middle;">{{ val }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 2rem; text-align: center; background: rgba(240, 244, 254, 0.5); border-radius: 16px; border: 2px dashed rgba(30, 58, 138, 0.2);">
+                <i style="font-size: 4rem; color: rgba(30, 58, 138, 0.3); margin-bottom: 1.5rem;" class="fas fa-chart-bar"></i>
+                <h3 style="font-size: 1.5rem; color: #4a5568; margin-bottom: 1rem;">No Descriptive Statistics Available</h3>
+                <p style="color: #718096; max-width: 600px; margin: 0 auto;">Select a dataset and click "Process Data" to generate descriptive statistics.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    
+
+</div>
+<footer class="bg-[#0c1123]/95 text-gray-300 px-8 sm:px-12 lg:px-20 py-6 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 shadow-inner">
+  
+  <!-- Copyright -->
+  <p class="text-sm sm:text-base text-center sm:text-left">
+    &copy; {% now "Y" %} Minet Insurance. All rights reserved.
+  </p>
+
+  <!-- Links -->
+  <div class="flex gap-4 text-sm sm:text-base">
+    <a href="#" class="hover:text-[#1cb3c9] transition-colors duration-300">Privacy Policy</a>
+    <span>|</span>
+    <a href="#" class="hover:text-[#1cb3c9] transition-colors duration-300">Terms of Service</a>
+  </div>
+</footer>
+
+
+<script>
+// Show "Processing..." message
+function showProcessing() {
+    const msg = document.getElementById("processing-msg");
+    if (msg) {
+        msg.style.display = "inline-flex";
+    }
+}
+
+// Toggle function for descriptive statistics
+function toggleDescriptiveStats() {
+    const content = document.getElementById('descriptiveStatsContent');
+    const icon = document.getElementById('descriptiveStatsIcon');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        content.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    // Initialize with descriptive stats collapsed
+    const statsContent = document.getElementById('descriptiveStatsContent');
+    if (statsContent) statsContent.style.display = 'none';
+
+    // Function to filter Plotly chart data
+    function filterChartData(chartId, start, end) {
+        const chartElement = document.getElementById(chartId);
+        if (!chartElement) return;
+        
+        const gd = chartElement.querySelector("div.js-plotly-plot");
+        if (!gd || !gd.data) return;
+        
+        const fullData = gd.data;
+        const filteredData = fullData.map(trace => {
+            const xFiltered = [], yFiltered = [];
+            trace.x.forEach((date, i) => {
+                if (date >= start && date <= end) {
+                    xFiltered.push(date);
+                    yFiltered.push(trace.y[i]);
+                }
+            });
+            return { ...trace, x: xFiltered, y: yFiltered };
+        });
+        
+        Plotly.react(gd, filteredData, gd.layout);
+    }
+
+    // Apply Date Filter
+    document.getElementById("applyDateFilter")?.addEventListener("click", function () {
+        const start = document.getElementById("startDate")?.value;
+        const end = document.getElementById("endDate")?.value;
+        
+        if (!start || !end) { 
+            alert("Please select both start and end dates"); 
+            return; 
+        }
+
+        // Show processing message
+        showProcessing();
+
+        // Apply filter to all charts
+        ["claimsTimeChart", "categoryChart", "sunburstChart"].forEach(
+            id => filterChartData(id, start, end)
+        );
+        
+        // Hide processing message after filtering
+        setTimeout(() => {
+            const msg = document.getElementById("processing-msg");
+            if (msg) msg.style.display = "none";
+        }, 1000);
+
+        // Show success toast
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: #27ae60;
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            animation: slideIn 0.3s, fadeOut 0.3s 2.5s forwards;
+        `;
+        toast.innerHTML = `<i class="fas fa-check-circle"></i> Date filter applied successfully`;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => toast.remove(), 3000);
+    });
+
+    // Reset Date Filter
+    document.getElementById("resetDateFilter")?.addEventListener("click", function () { 
+        location.reload(); 
+    });
+});
+</script>
+
+{% endblock %}
